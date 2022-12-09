@@ -32,11 +32,11 @@ Next we'll cover some source code snippet for geo hashing lat/long coords. It is
 This will create a very wide circle and generate a channel name used to connect.  Next connect to PubNub with this channel name.
 
     // Connect to Proximity Channel
-    pubnub.subscribe({
-         channel : channel,
-         message : receive,
-         connect : ready,
-        presence : presence
+     pubnub.subscribe({channels: [channel]}); 
+        pubnub.addListener({
+        message: function (m) {
+            printout(m.message);
+        }
     });
 
 ![Acquired Latitude Longitude Chat Proximity Group][5]
@@ -52,10 +52,9 @@ That's it! You simply reduce the resolution of a geo coordinate and use that as 
 ![Geohashing Chat Conversations based on Proximity Nearby][6]
 
 
-  [1]: http://stephenlb.github.io/geohash-chat-by-proximity/
-  [2]: https://github.com/stephenlb/geohash-chat-by-proximity
+  [1]: https://pubnubdevelopers.github.io/Geohashing-Chat-by-Proximity/
+  [2]: https://github.com/PubNubDevelopers/Geohashing-Chat-by-Proximity
   [3]: http://i.stack.imgur.com/tV9S7.jpg
   [4]: http://i.stack.imgur.com/LUAvv.png
   [5]: http://i.stack.imgur.com/GQD3n.png
   [6]: http://i.stack.imgur.com/u0uE0.png
-  [7]: http://www.pubnub.com/developers/connected-car/
