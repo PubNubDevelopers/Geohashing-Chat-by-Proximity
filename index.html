@@ -1,0 +1,201 @@
+<style>
+    #map {
+        display: inline-block;
+        margin: 10px;
+        width: 600px;
+        height: 80px;
+        background: #eee;
+    }
+    #status {
+        background: #b9d1e4;
+        border-radius: 6px;
+        padding: 20px;
+        margin: 10px;
+        color: #fff;
+        font-size: 29px;
+        font-family: "Helvetica Neue";
+        font-weight: 100;
+    }
+
+    #input {
+        padding: 10px 5px 5px 5px;
+        margin: 10px;
+        border: 0;
+        border-bottom: 1px solid #333;
+        outline: none;
+        font-size: 20px;
+        font-family: "Helvetica Neue";
+    }
+
+    #box {
+        margin: 10px;
+        font-size: 20px;
+        font-family: "Helvetica Neue";
+        font-weight: 100;
+    }
+
+    .spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        margin: 1px 10px 1px 1px;
+        position: relative;
+
+        border: 2px solid rgb(255,255,255);
+        border-top-color: transparent;
+        border-radius: 100%;
+
+        -webkit-animation: spin 1s infinite linear;
+        -moz-animation: spin 1s infinite linear;
+        -ms-animation: spin 1s infinite linear;
+        -o-animation: spin 1s infinite linear;
+        animation: spin 1s infinite linear;
+    }
+     
+    @-webkit-keyframes spin { to { -webkit-transform: rotate(360deg); } }
+    @-moz-keyframes spin { to { -moz-transform: rotate(360deg); } }
+    @-ms-keyframes spin { to { -ms-transform: rotate(360deg); } }
+    @-o-keyframes spin { to { -o-transform: rotate(360deg); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<!-- Status -->
+<div id="status">
+    <span class="spinner"></span>
+    <span id="status-message">Acquiring Your Location...</span>
+</div>
+
+<!-- Map -->
+<div><img id="map" src="http://maps.googleapis.com/maps/api/staticmap?center=Oakland,CA&zoom=16&size=600x100&maptype=roadmap&sensor=false&key=AIzaSyCt6cPHr8BqfmKQpz9rZeIFjDF2r52f7kg"></div>
+
+<!-- Input Chat Box -->
+<input id="input" placeholder="Chat here">
+
+<!-- Output Chat Box -->
+<div id="box"></div>
+
+<script src=https://cdn.pubnub.com/sdk/javascript/pubnub.7.2.1.min.js></script>
+<script>(function(){
+
+     // Creates UUID
+     function makeid(length) {
+        var result           = '';
+        var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        var charactersLength = characters.length;
+        for ( var i = 0; i < length; i++ ) {
+            result += characters.charAt(Math.floor(Math.random() * charactersLength));
+        }
+        return result;
+    }
+
+    // App setup
+    var  pubnub = new PubNub({
+        publishKey : "pub-c-e0ad8107-dc5f-40c9-826f-283d4683af9b",
+        subscribeKey : "sub-c-2fa07360-f793-446c-a55e-ef6aa2789422",
+        userId: makeid(10)
+    }),
+    box = document.getElementById('box'),
+    input = document.getElementById('input'),
+    map = document.getElementById('map'),
+    statusmsg = document.getElementById('status-message'),
+    status = document.getElementById('status'),
+    coords = { latitude : 0.0, longitude : 0.0 },
+    channel = 'geo_channel';
+
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    // Get Location
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    location(function(pos){
+        channel = geohash(pos.latitude) + '' + geohash(pos.longitude);
+        status.innerHTML = 'You are chatting with people near: <strong>'+channel+'</strong>.';
+
+        // Map
+        map.src =
+            'http://maps.googleapis.com/maps/api/staticmap?' +
+            'center=' + pos.latitude + ',' + pos.longitude +'&zoom=13&size=600x100' + 
+            '&markers=color:red%7Clabel:d%7C' + pos.latitude + ',' + pos.longitude +
+            '&maptype=roadmap&sensor=false&key=AIzaSyCt6cPHr8BqfmKQpz9rZeIFjDF2r52f7kg';
+
+        coords.latitude  = pos.latitude;
+        coords.longitude = pos.longitude;
+
+        // Connect to Proximity Channel
+        pubnub.subscribe({channels: [channel]}); 
+            pubnub.addListener({
+            message: function (m) {
+                printout(m.message);
+            }
+        });
+
+        // Text input focus
+        input.focus();
+
+        // History
+        pubnub.fetchMessages(
+            {
+                channels: [channel],
+                count: 100,
+            },
+            function (status, response) {
+                if (response.channels[channel] && channel in response.channels) {
+                    response.channels[channel].forEach((message) => {
+                        printout(message.message);          
+                    });
+                }
+            }
+        );
+    });
+
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    // Geo Hash
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    function geohash( coord, resolution ) {
+        var rez = Math.pow( 10, resolution || 0 );
+        return Math.floor(coord * rez) / rez;
+    }
+
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    // Update UI Output
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    function printout(text) {
+        // Update text output here
+        box.innerHTML = safe_text(text) + '<br>' + box.innerHTML;
+    }
+
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    // Send UI
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    input.addEventListener('keypress', function (e) {
+        if ((e.keyCode || e.charCode) == 13) {
+            pubnub.publish({ 
+                channel: channel, message: input.value, 
+                x: (input.value = '')
+            });
+        };
+    });
+
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    // Safe Text
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    function safe_text(text) {
+        return (''+text).replace( /[<>]/g, '' );
+    }
+
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    // Geo Location
+    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    function location(callback) {
+        function success(pos) { callback(pos.coords) }
+        function error(err) {
+            callback({ latitude : 0.0, longitude : 0.0 });
+        };
+
+        // Get Lat/Long
+        navigator.geolocation.getCurrentPosition( success, error, {
+            enableHighAccuracy : true,
+                       timeout : 5000,
+                    maximumAge : 0
+        } );
+    }
+
+})();</script>
